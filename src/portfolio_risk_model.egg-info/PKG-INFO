@@ -2,4 +2,8 @@ Metadata-Version: 2.4
 Name: portfolio-risk-model
 Version: 0.1.0
 Summary: A research-driven portfolio risk management framework.
-Requires-Python: >=3.13
+Requires-Python: <3.13,>=3.12
+Requires-Dist: finpy-tse>=1.2.10
+Requires-Dist: pyarrow>=25.0.0
+Requires-Dist: pytse>=1.6.2
+Requires-Dist: pytse-client>=0.19.1

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import date, datetime
 from enum import Enum
 
 
@@ -45,32 +44,26 @@ class TableContract:
         missing_primary_key = set(self.primary_key) - set(column_names)
 
         if missing_primary_key:
-            raise ValueError(
-                f"Primary key columns missing from contract: "
-                f"{sorted(missing_primary_key)}"
-            )
+            missing = ", ".join(sorted(missing_primary_key))
+            raise ValueError(f"Primary key columns not found in contract: {missing}")
 
         missing_sort_columns = set(self.sort_by) - set(column_names)
 
         if missing_sort_columns:
-            raise ValueError(
-                f"Sort columns missing from contract: "
-                f"{sorted(missing_sort_columns)}"
-            )
+            missing = ", ".join(sorted(missing_sort_columns))
+            raise ValueError(f"Sort columns not found in contract: {missing}")
 
-        nullable_columns = {
-            column.name
-            for column in self.columns
-            if column.nullable
-        }
+        columns_by_name = {column.name: column for column in self.columns}
 
-        invalid_primary_key = set(self.primary_key) & nullable_columns
+        nullable_primary_keys = [
+            column_name
+            for column_name in self.primary_key
+            if columns_by_name[column_name].nullable
+        ]
 
-        if invalid_primary_key:
-            raise ValueError(
-                f"Primary key columns cannot be nullable: "
-                f"{sorted(invalid_primary_key)}"
-            )
+        if nullable_primary_keys:
+            nullable = ", ".join(sorted(nullable_primary_keys))
+            raise ValueError(f"Primary key columns cannot be nullable: {nullable}")
 
     @property
     def column_names(self) -> tuple[str, ...]:
@@ -78,26 +71,27 @@ class TableContract:
 
     @property
     def required_columns(self) -> tuple[str, ...]:
-        return tuple(
-            column.name
-            for column in self.columns
-            if not column.nullable
-        )
+        return tuple(column.name for column in self.columns if not column.nullable)
 
 
 INTERIM_MARKET_DATA_CONTRACT = TableContract(
     name="interim_market_data",
     columns=(
-        ColumnSpec("date", LogicalDType.DATETIME, False),
-        ColumnSpec("asset_id", LogicalDType.STRING, False),
-        ColumnSpec("open", LogicalDType.FLOAT, True),
-        ColumnSpec("high", LogicalDType.FLOAT, True),
-        ColumnSpec("low", LogicalDType.FLOAT, True),
-        ColumnSpec("close", LogicalDType.FLOAT, True),
-        ColumnSpec("adjusted_close", LogicalDType.FLOAT, False),
-        ColumnSpec("volume", LogicalDType.FLOAT, True),
-        ColumnSpec("source", LogicalDType.STRING, False),
-        ColumnSpec("currency", LogicalDType.STRING, True),
+        ColumnSpec(
+            name="date",
+            dtype=LogicalDType.DATETIME,
+            nullable=False,
+        ),
+        ColumnSpec(
+            name="asset_id",
+            dtype=LogicalDType.STRING,
+            nullable=False,
+        ),
+        ColumnSpec(
+            name="adjusted_close",
+            dtype=LogicalDType.FLOAT,
+            nullable=False,
+        ),
     ),
     primary_key=("date", "asset_id"),
     sort_by=("asset_id", "date"),
@@ -107,46 +101,33 @@ INTERIM_MARKET_DATA_CONTRACT = TableContract(
 PROCESSED_MARKET_DATA_CONTRACT = TableContract(
     name="processed_market_data",
     columns=(
-        ColumnSpec("date", LogicalDType.DATETIME, False),
-        ColumnSpec("asset_id", LogicalDType.STRING, False),
-        ColumnSpec("adjusted_close", LogicalDType.FLOAT, False),
-        ColumnSpec("is_observed", LogicalDType.BOOLEAN, False),
+        ColumnSpec(
+            name="date",
+            dtype=LogicalDType.DATETIME,
+            nullable=False,
+        ),
+        ColumnSpec(
+            name="asset_id",
+            dtype=LogicalDType.STRING,
+            nullable=False,
+        ),
+        ColumnSpec(
+            name="adjusted_close",
+            dtype=LogicalDType.FLOAT,
+            nullable=False,
+        ),
+        ColumnSpec(
+            name="return",
+            dtype=LogicalDType.FLOAT,
+            nullable=True,
+        ),
     ),
-    primary_key=("date", "asset_id"),
-    sort_by=("asset_id", "date"),
+    primary_key=(
+        "date",
+        "asset_id",
+    ),
+    sort_by=(
+        "date",
+        "asset_id",
+    ),
 )
-
-
-@dataclass(frozen=True, slots=True)
-class RawDataManifest:
-    asset_id: str
-    source: str
-    provider_symbol: str
-    frequency: Frequency
-    fetched_at_utc: datetime
-    requested_start: date | None
-    requested_end: date | None
-    row_count: int
-    schema_version: str = "1.0.0"
-
-    def __post_init__(self) -> None:
-        if not self.asset_id:
-            raise ValueError("asset_id cannot be empty")
-
-        if not self.source:
-            raise ValueError("source cannot be empty")
-
-        if not self.provider_symbol:
-            raise ValueError("provider_symbol cannot be empty")
-
-        if self.row_count < 0:
-            raise ValueError("row_count cannot be negative")
-
-        if (
-            self.requested_start is not None
-            and self.requested_end is not None
-            and self.requested_start > self.requested_end
-        ):
-            raise ValueError(
-                "requested_start cannot be after requested_end"
-            )

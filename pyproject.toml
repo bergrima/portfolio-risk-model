@@ -9,6 +9,7 @@ description = "A research-driven portfolio risk management framework."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "finpy-tse>=1.2.10",
+    "matplotlib>=3.11.1",
     "pyarrow>=25.0.0",
     "pytse>=1.6.2",
     "pytse-client>=0.19.1",
@@ -16,6 +17,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
     "pandas>=3.0.5",
     "pre-commit>=4.6.1",
     "pytest>=9.1.1",

@@ -91,32 +91,22 @@ def build_interim_market_data(
 
 def ingest_market_data(
     provider: MarketDataProvider,
-    requests: Sequence[MarketDataRequest] | None = None,
-    *,
-    asset_ids: list[str] | None = None,
+    requests: Sequence[MarketDataRequest],
 ) -> pd.DataFrame:
-    # New provider interface.
-    if requests is not None:
-        return fetch_market_data(
-            provider=provider,
-            requests=requests,
-        )
-
-    # Temporary compatibility with the existing pipeline.
-    if asset_ids is not None:
-        return provider.fetch(asset_ids=asset_ids)  # type: ignore[call-arg]
-
-    raise ValueError("Either requests or asset_ids must be provided")
+    return fetch_market_data(
+        provider=provider,
+        requests=requests,
+    )
 
 
 def ingest_and_save_raw_market_data(
     provider: MarketDataProvider,
-    asset_ids: list[str],
+    requests: Sequence[MarketDataRequest],
     output_path: Path,
 ) -> pd.DataFrame:
     raw_data = ingest_market_data(
         provider=provider,
-        asset_ids=asset_ids,
+        requests=requests,
     )
 
     save_dataframe(
@@ -135,6 +125,11 @@ def prepare_processed_market_data(
         price_column="adjusted_close",
         asset_column="asset_id",
         return_column="return",
+    )
+
+    result = sort_rows(
+        result,
+        columns=PROCESSED_MARKET_DATA_CONTRACT.sort_by,
     )
 
     validate_table(
@@ -163,7 +158,7 @@ def build_processed_market_data(
 
 def run_market_data_pipeline(
     provider: MarketDataProvider,
-    asset_ids: list[str],
+    requests: Sequence[MarketDataRequest],
     column_mapping: dict[str, str],
     raw_output_path: Path,
     interim_output_path: Path,
@@ -171,7 +166,7 @@ def run_market_data_pipeline(
 ) -> pd.DataFrame:
     raw_data = ingest_and_save_raw_market_data(
         provider=provider,
-        asset_ids=asset_ids,
+        requests=requests,
         output_path=raw_output_path,
     )
 

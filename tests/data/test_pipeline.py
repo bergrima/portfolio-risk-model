@@ -20,6 +20,17 @@ from portfolio_risk_model.data.providers import (
 )
 
 
+def make_market_data_requests() -> list[MarketDataRequest]:
+    return [
+        MarketDataRequest(
+            asset_id="SPY",
+            symbol="SPY",
+            start_date=date(2025, 1, 1),
+            end_date=date(2025, 1, 2),
+        )
+    ]
+
+
 def test_prepare_interim_market_data_returns_valid_normalized_data() -> None:
     df = pd.DataFrame(
         {
@@ -161,8 +172,8 @@ def test_prepare_interim_market_data_returns_sorted_rows() -> None:
     ]
 
     actual = [
-        (date.strftime("%Y-%m-%d"), asset_id)
-        for date, asset_id in zip(
+        (row_date.strftime("%Y-%m-%d"), asset_id)
+        for row_date, asset_id in zip(
             result["date"],
             result["asset_id"],
             strict=True,
@@ -394,18 +405,26 @@ def test_ingest_and_save_raw_market_data_creates_raw_file(
 ) -> None:
     df = pd.DataFrame(
         {
-            "Date": [
-                "2025-01-02",
-                "2025-01-01",
-            ],
-            "Ticker": [
-                " SPY ",
-                "SPY",
-            ],
-            "Adj Close": [
-                "101.0",
-                "100.0",
-            ],
+            "date": pd.to_datetime(
+                [
+                    "2025-01-02",
+                    "2025-01-01",
+                ]
+            ),
+            "asset_id": pd.Series(
+                [
+                    "SPY",
+                    "SPY",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    101.0,
+                    100.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 
@@ -415,26 +434,45 @@ def test_ingest_and_save_raw_market_data_creates_raw_file(
 
     result = ingest_and_save_raw_market_data(
         provider=provider,
-        asset_ids=["SPY"],
+        requests=make_market_data_requests(),
         output_path=output_path,
     )
 
     assert output_path.exists()
 
+    saved = pd.read_parquet(output_path)
+
     pd.testing.assert_frame_equal(
+        saved,
         result,
-        df,
     )
 
 
-def test_raw_market_data_is_saved_without_normalization(
+def test_raw_market_data_is_saved_without_pipeline_transforms(
     tmp_path: Path,
 ) -> None:
     df = pd.DataFrame(
         {
-            "Date": ["2025-01-01"],
-            "Ticker": [" SPY "],
-            "Adj Close": ["100.0"],
+            "date": pd.to_datetime(
+                [
+                    "2025-01-01",
+                    "2025-01-02",
+                ]
+            ),
+            "asset_id": pd.Series(
+                [
+                    "SPY",
+                    "SPY",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    100.0,
+                    101.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 
@@ -444,19 +482,19 @@ def test_raw_market_data_is_saved_without_normalization(
 
     ingest_and_save_raw_market_data(
         provider=provider,
-        asset_ids=["SPY"],
+        requests=make_market_data_requests(),
         output_path=output_path,
     )
 
     saved = pd.read_parquet(output_path)
 
     assert saved.columns.tolist() == [
-        "Date",
-        "Ticker",
-        "Adj Close",
+        "date",
+        "asset_id",
+        "adjusted_close",
     ]
 
-    assert saved.loc[0, "Ticker"] == " SPY "
+    assert "return" not in saved.columns
 
 
 def test_prepare_processed_market_data_adds_return_column() -> None:
@@ -563,27 +601,35 @@ def test_run_market_data_pipeline_creates_all_layers(
 ) -> None:
     raw_df = pd.DataFrame(
         {
-            "Date": [
-                "2025-01-02",
-                "2025-01-01",
-            ],
-            "Ticker": [
-                " SPY ",
-                " SPY ",
-            ],
-            "Adj Close": [
-                "102.0",
-                "100.0",
-            ],
+            "date": pd.to_datetime(
+                [
+                    "2025-01-02",
+                    "2025-01-01",
+                ]
+            ),
+            "asset_id": pd.Series(
+                [
+                    "SPY",
+                    "SPY",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    102.0,
+                    100.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 
     provider = InMemoryMarketDataProvider(raw_df)
 
     column_mapping = {
-        "Date": "date",
-        "Ticker": "asset_id",
-        "Adj Close": "adjusted_close",
+        "date": "date",
+        "asset_id": "asset_id",
+        "adjusted_close": "adjusted_close",
     }
 
     raw_path = tmp_path / "raw" / "market_data.parquet"
@@ -592,7 +638,7 @@ def test_run_market_data_pipeline_creates_all_layers(
 
     result = run_market_data_pipeline(
         provider=provider,
-        asset_ids=["SPY"],
+        requests=make_market_data_requests(),
         column_mapping=column_mapping,
         raw_output_path=raw_path,
         interim_output_path=interim_path,
@@ -611,27 +657,35 @@ def test_run_market_data_pipeline_preserves_layer_semantics(
 ) -> None:
     raw_df = pd.DataFrame(
         {
-            "Date": [
-                "2025-01-02",
-                "2025-01-01",
-            ],
-            "Ticker": [
-                " SPY ",
-                " SPY ",
-            ],
-            "Adj Close": [
-                "102.0",
-                "100.0",
-            ],
+            "date": pd.to_datetime(
+                [
+                    "2025-01-02",
+                    "2025-01-01",
+                ]
+            ),
+            "asset_id": pd.Series(
+                [
+                    "SPY",
+                    "SPY",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    102.0,
+                    100.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 
     provider = InMemoryMarketDataProvider(raw_df)
 
     column_mapping = {
-        "Date": "date",
-        "Ticker": "asset_id",
-        "Adj Close": "adjusted_close",
+        "date": "date",
+        "asset_id": "asset_id",
+        "adjusted_close": "adjusted_close",
     }
 
     raw_path = tmp_path / "raw.parquet"
@@ -640,7 +694,7 @@ def test_run_market_data_pipeline_preserves_layer_semantics(
 
     run_market_data_pipeline(
         provider=provider,
-        asset_ids=["SPY"],
+        requests=make_market_data_requests(),
         column_mapping=column_mapping,
         raw_output_path=raw_path,
         interim_output_path=interim_path,
@@ -652,9 +706,9 @@ def test_run_market_data_pipeline_preserves_layer_semantics(
     processed = pd.read_parquet(processed_path)
 
     assert raw.columns.tolist() == [
-        "Date",
-        "Ticker",
-        "Adj Close",
+        "date",
+        "asset_id",
+        "adjusted_close",
     ]
 
     assert interim.columns.tolist() == [
@@ -676,32 +730,40 @@ def test_run_market_data_pipeline_calculates_expected_return(
 ) -> None:
     raw_df = pd.DataFrame(
         {
-            "Date": [
-                "2025-01-02",
-                "2025-01-01",
-            ],
-            "Ticker": [
-                "SPY",
-                "SPY",
-            ],
-            "Adj Close": [
-                "102.0",
-                "100.0",
-            ],
+            "date": pd.to_datetime(
+                [
+                    "2025-01-02",
+                    "2025-01-01",
+                ]
+            ),
+            "asset_id": pd.Series(
+                [
+                    "SPY",
+                    "SPY",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    102.0,
+                    100.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 
     provider = InMemoryMarketDataProvider(raw_df)
 
     column_mapping = {
-        "Date": "date",
-        "Ticker": "asset_id",
-        "Adj Close": "adjusted_close",
+        "date": "date",
+        "asset_id": "asset_id",
+        "adjusted_close": "adjusted_close",
     }
 
     result = run_market_data_pipeline(
         provider=provider,
-        asset_ids=["SPY"],
+        requests=make_market_data_requests(),
         column_mapping=column_mapping,
         raw_output_path=tmp_path / "raw.parquet",
         interim_output_path=tmp_path / "interim.parquet",
@@ -726,18 +788,24 @@ def test_fetch_market_data_combines_requests() -> None:
                     "2024-01-02",
                 ]
             ),
-            "asset_id": [
-                "equity",
-                "equity",
-                "gold",
-                "gold",
-            ],
-            "adjusted_close": [
-                100.0,
-                101.0,
-                500.0,
-                510.0,
-            ],
+            "asset_id": pd.Series(
+                [
+                    "equity",
+                    "equity",
+                    "gold",
+                    "gold",
+                ],
+                dtype="string",
+            ),
+            "adjusted_close": pd.Series(
+                [
+                    100.0,
+                    101.0,
+                    500.0,
+                    510.0,
+                ],
+                dtype="float64",
+            ),
         }
     )
 

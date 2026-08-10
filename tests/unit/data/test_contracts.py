@@ -1,8 +1,8 @@
 import pytest
 
 from portfolio_risk_model.data.contracts import (
-    ColumnSpec,
     INTERIM_MARKET_DATA_CONTRACT,
+    ColumnSpec,
     LogicalDType,
     TableContract,
 )
@@ -16,10 +16,7 @@ def test_interim_contract_primary_key() -> None:
 
 
 def test_interim_contract_contains_adjusted_close() -> None:
-    assert (
-        "adjusted_close"
-        in INTERIM_MARKET_DATA_CONTRACT.column_names
-    )
+    assert "adjusted_close" in INTERIM_MARKET_DATA_CONTRACT.column_names
 
 
 def test_primary_key_columns_are_required() -> None:
